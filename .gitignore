@@ -1,0 +1,5 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+graphql-frontend/node_modules
+graphql-backend/node_modules
