@@ -1,6 +1,44 @@
 import React, { useState } from 'react';
 import './App.css';
 
+const TOP_PRODUCTS_QUERY = `
+  query GetTopProducts($sellerId: String!) {
+    topProductsBySeller(seller_id: $sellerId) {
+      product_id
+      product_category_name
+      total_sales
+    }
+  }
+`;
+
+const LAST_PRODUCTS_QUERY = `
+  query GetLastProducts($customerId: String!) {
+    lastThreeProductsByCustomer(customer_id: $customerId) {
+      product_id
+      product_category_name
+      order_purchase_timestamp
+    }
+  }
+`;
+
+const SELLER_REVENUE_QUERY = `
+  query GetSellerRevenue($sellerId: String!) {
+    sellerTotalRevenue(seller_id: $sellerId) {
+      seller_id
+      total_revenue
+    }
+  }
+`;
+
+const TOP_SELLERS_QUERY = `
+  query GetTopSellers($category: String!) {
+    topSellersByCategory(category: $category) {
+      seller_id
+      total_sales
+    }
+  }
+`;
+
 function App() {
   const [activeFunction, setActiveFunction] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -8,7 +46,13 @@ function App() {
   const [sellerId, setSellerId] = useState('');
   const [orders, setOrders] = useState([]);
   const [zipCodes, setZipCodes] = useState([]);
+  const [topProducts, setTopProducts] = useState([]);
   const [error, setError] = useState(null);
+  const [customerId, setCustomerId] = useState('');
+  const [lastProducts, setLastProducts] = useState([]);
+  const [sellerRevenue, setSellerRevenue] = useState(null);
+  const [category, setCategory] = useState('');
+  const [topSellers, setTopSellers] = useState([]);
 
   const handleSearch = async () => {
     try {
@@ -99,6 +143,111 @@ function App() {
     }
   };
 
+  const handleTopProducts = async () => {
+    if (!sellerId) {
+      setError('Please enter a Seller ID');
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:4000/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: TOP_PRODUCTS_QUERY,
+          variables: {
+            sellerId
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (result.errors) {
+        setError(result.errors[0].message);
+        setTopProducts([]);
+      } else if (result.data) {
+        setTopProducts(result.data.topProductsBySeller);
+        setError(null);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setError('Failed to fetch top products');
+      setTopProducts([]);
+    }
+  };
+
+  const handleLastProducts = async () => {
+    if (!customerId) {
+      setError('Please enter a Customer ID');
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:4000/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: LAST_PRODUCTS_QUERY,
+          variables: {
+            customerId
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (result.errors) {
+        setError(result.errors[0].message);
+        setLastProducts([]);
+      } else if (result.data) {
+        setLastProducts(result.data.lastThreeProductsByCustomer);
+        setError(null);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setError('Failed to fetch customer orders');
+      setLastProducts([]);
+    }
+  };
+
+  const handleTopSellers = async () => {
+    if (!category) {
+      setError('Please enter a product category');
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:4000/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: TOP_SELLERS_QUERY,
+          variables: {
+            category
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (result.errors) {
+        setError(result.errors[0].message);
+        setTopSellers([]);
+      } else if (result.data) {
+        setTopSellers(result.data.topSellersByCategory);
+        setError(null);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setError('Failed to fetch top sellers');
+      setTopSellers([]);
+    }
+  };
+
   const handleButtonClick = (functionName) => {
     setActiveFunction(functionName);
     setOrders([]);
@@ -126,22 +275,23 @@ function App() {
             Top Customer Zip Codes
           </button>
           <button 
-            className={`App-button ${activeFunction === 'function3' ? 'active' : ''}`}
-            onClick={() => handleButtonClick('function3')}
+            className={`App-button ${activeFunction === 'topProducts' ? 'active' : ''}`}
+            onClick={() => handleButtonClick('topProducts')}
           >
-            Function 3
+            Top Products by Seller
           </button>
           <button 
-            className={`App-button ${activeFunction === 'function4' ? 'active' : ''}`}
-            onClick={() => handleButtonClick('function4')}
+            className={`App-button ${activeFunction === 'lastProducts' ? 'active' : ''}`}
+            onClick={() => handleButtonClick('lastProducts')}
           >
-            Function 4
+            Last Orders by Customer
           </button>
+
           <button 
-            className={`App-button ${activeFunction === 'function5' ? 'active' : ''}`}
-            onClick={() => handleButtonClick('function5')}
+            className={`App-button ${activeFunction === 'topSellers' ? 'active' : ''}`}
+            onClick={() => handleButtonClick('topSellers')}
           >
-            Function 5
+            Top Sellers by Category
           </button>
         </div>
 
@@ -193,7 +343,115 @@ function App() {
             </div>
           </div>
         )}
-        
+
+        {activeFunction === 'topProducts' && (
+          <div className="function-content">
+            <div className="seller-input">
+              <input
+                type="text"
+                value={sellerId}
+                onChange={(e) => setSellerId(e.target.value)}
+                className="App-input"
+                placeholder="Enter Seller ID"
+              />
+              <button 
+                className="App-button submit-button"
+                onClick={handleTopProducts}
+                disabled={!sellerId}
+              >
+                Submit
+              </button>
+            </div>
+
+            {topProducts.length > 0 && (
+              <div className="results">
+                <h3>Top 3 Products:</h3>
+                <ul>
+                  {topProducts.map(product => (
+                    <li key={product.product_id}>
+                      Category: {product.product_category_name || 'N/A'}<br/>
+                      Product ID: {product.product_id}<br/>
+                      Total Sales: {product.total_sales}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeFunction === 'lastProducts' && (
+          <div className="function-content">
+            <div className="customer-input">
+              <input
+                type="text"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                className="App-input"
+                placeholder="Enter Customer ID"
+              />
+              <button 
+                className="App-button submit-button"
+                onClick={handleLastProducts}
+                disabled={!customerId}
+              >
+                Submit
+              </button>
+            </div>
+
+            {lastProducts.length > 0 && (
+              <div className="results">
+                <h3>Last 3 Products Ordered:</h3>
+                <ul>
+                  {lastProducts.map((product, index) => (
+                    <li key={index}>
+                      Category: {product.product_category_name || 'N/A'}<br/>
+                      Product ID: {product.product_id}<br/>
+                      Order Date: {new Date(product.order_purchase_timestamp).toLocaleDateString()}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+       
+        {activeFunction === 'topSellers' && (
+          <div className="function-content">
+            <div className="category-input">
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="App-input"
+                placeholder="Enter Product Category"
+              />
+              <button 
+                className="App-button submit-button"
+                onClick={handleTopSellers}
+                disabled={!category}
+              >
+                Find Top Sellers
+              </button>
+            </div>
+
+            {topSellers.length > 0 && (
+              <div className="results">
+                <h3>Top 5 Sellers in {category}:</h3>
+                <ul>
+                  {topSellers.map((seller, index) => (
+                    <li key={seller.seller_id}>
+                      #{index + 1}: Seller ID: {seller.seller_id}<br/>
+                      Total Sales: {seller.total_sales}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && (
           <div className="error-message" style={{ color: 'red', margin: '10px 0' }}>
             {error}
