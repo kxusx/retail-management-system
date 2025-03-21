@@ -1,7 +1,8 @@
 const express = require('express');
 const { ApolloServer, gql } = require('apollo-server-express');
-const { Sequelize, DataTypes, Op } = require('sequelize');
-const cors = require('cors'); // Add this for CORS support
+const { Sequelize, Op } = require('sequelize');
+const cors = require('cors');
+const initModels = require('./models');
 
 // Create an Express app
 const app = express();
@@ -9,13 +10,16 @@ const app = express();
 // Enable CORS
 app.use(cors());
 
-// Set up Sequelize with your local database credentials
-const sequelize = new Sequelize('retail_db', 'root', 'sql', {  // Replace '' with your MySQL password if you have one
-    host: '127.0.0.1',  // Use 127.0.0.1 instead of localhost,
+// Set up Sequelize
+const sequelize = new Sequelize('retail_db', 'root', 'sql', {
+  host: '127.0.0.1',
   dialect: 'mysql',
   port: 3306,
-  logging: console.log, // Set to false to disable SQL query logging
+  logging: console.log,
 });
+
+// Initialize models
+const { Order, OrderItem, Product, Customer } = initModels(sequelize);
 
 // Test the database connection
 async function testConnection() {
@@ -29,22 +33,6 @@ async function testConnection() {
 
 testConnection();
 
-// Define an Order model
-const Order = sequelize.define('Order', {
-  order_id: {
-    type: DataTypes.STRING,
-    primaryKey: true,
-    allowNull: false,
-  },
-  order_purchase_timestamp: {
-    type: DataTypes.DATE,
-    allowNull: true,
-  }
-}, {
-  tableName: 'Order', // Specify the actual table name in your database
-  timestamps: false    // Set to true if your table has createdAt and updatedAt columns
-});
-
 // Define the GraphQL schema
 const typeDefs = gql`
   type Order {
@@ -52,8 +40,14 @@ const typeDefs = gql`
     order_purchase_timestamp: String!
   }
 
+  type ZipCodeCount {
+    zip_code: String!
+    count: Int!
+  }
+
   type Query {
     ordersBetweenDates(startDate: String!, endDate: String!): [Order]
+    topCustomerZipCodes(seller_id: String!): [ZipCodeCount]
   }
 `;
 
@@ -72,7 +66,50 @@ const resolvers = {
         return orders;
       } catch (error) {
         console.error('Error fetching orders:', error);
-        throw new Error('Failed to fetch orders');
+        throw new Error(`Failed to fetch orders: ${error.message}`);
+      }
+    },
+    
+    topCustomerZipCodes: async (_, { seller_id }) => {
+      try {
+        console.log('Searching for seller_id:', seller_id);
+        const zipCodes = await OrderItem.findAll({
+          attributes: [
+            [sequelize.col('Order.Customer.zip_code'), 'zip_code'],
+            [Sequelize.fn('COUNT', Sequelize.col('Order.Customer.zip_code')), 'count']
+          ],
+          include: [
+            {
+              model: Product,
+              required: true,
+              attributes: [],
+              where: { seller_id }
+            },
+            {
+              model: Order,
+              required: true,
+              attributes: [],
+              include: {
+                model: Customer,
+                required: true,
+                attributes: []
+              }
+            }
+          ],
+          group: ['Order.Customer.zip_code'],
+          order: [[Sequelize.literal('count'), 'DESC']],
+          limit: 5,
+          raw: true
+        });
+
+        console.log('Found zip codes:', zipCodes);
+        return zipCodes.map(({ zip_code, count }) => ({
+          zip_code,
+          count: parseInt(count, 10)
+        }));
+      } catch (error) {
+        console.error('Detailed error:', error);
+        throw new Error(`Failed to fetch top zip codes: ${error.message}`);
       }
     }
   }
